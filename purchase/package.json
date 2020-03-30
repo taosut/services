@@ -26,7 +26,7 @@
     "@nestjs/core": "^6.1.1",
     "@nestjs/platform-express": "^6.1.1",
     "@nestjs/typeorm": "^6.1.0",
-    "aws-lambda": "^0.1.2",
+    "aws-lambda": "^1.0.5",
     "aws-serverless-express": "^3.3.5",
     "express": "^4.16.4",
     "midtrans-client": "^1.0.3",
