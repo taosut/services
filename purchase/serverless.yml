@@ -1,0 +1,40 @@
+service: zenius-membership-payment
+
+provider:
+  name: aws
+  runtime: provided
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-optimize
+  - serverless-offline
+  # - serverless-plugin-warmup
+
+# custom:
+#   # Enable warmup on all functions (only for production and staging)
+#   warmup:
+#       - production
+#       - staging
+
+package:
+  exclude:
+    - .git/**
+    - src/**
+    - test/**
+    - nodemon.json
+    - README.md
+
+functions:
+  index:
+    handler: src/index.handler
+    events:
+      - http:
+          cors: true
+          path: '/'
+          method: any
+      - http:
+          cors: true
+          path: '{proxy+}'
+          method: any
+    layers: # add layer
+      - arn:aws:lambda:us-east-1:553035198032:layer:nodejs11:3

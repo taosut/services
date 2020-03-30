@@ -1,0 +1,82 @@
+org: agora
+app: agora
+service:
+  name: agora-authorizer-service
+
+custom:
+  # Keycloak Config
+  keycloak_config_local: { 'KEYCLOAK_BASE_URL': null }
+  keycloak_config_dev: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/dev~true}
+  keycloak_config_staging: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/staging~true}
+  keycloak_config_prod: {}
+
+  # Agora SaaS Keycloak Config
+  saas_keycloak_config_local: { 'KEYCLOAK_BASE_URL': null }
+  saas_keycloak_config_dev: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/dev~true}
+  saas_keycloak_config_staging: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/staging~true}
+  saas_keycloak_config_prod: {}
+
+provider:
+  name: aws
+  description: Agora Authorizer Services
+  role: arn:aws:iam::207219370128:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: agora-serverless
+  environment:
+    STAGE: ${self:provider.stage}
+    # Keycloak Config
+    AGORA_KEYCLOAK_BASE_URL: ${self:custom.keycloak_config_${self:provider.stage}.KEYCLOAK_BASE_URL}
+    AGORA_KEYCLOAK_BASE_URL_SAAS: ${self:custom.saas_keycloak_config_${self:provider.stage}.KEYCLOAK_BASE_URL}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/@types/**
+    - node_modules/aws-sdk/**
+  include:
+    - node_modules/mysql*/**
+    - package.json
+
+functions:
+  authorizerLearner:
+    handler: src/handler.learner
+    cors: true
+  authorizerAdmin:
+    handler: src/handler.admin
+    cors: true
+  authorizerAuthor:
+    handler: src/handler.author
+    cors: true
+  authorizerAuthorDirector:
+    handler: src/handler.authorDirector
+    cors: true
+  authorizerManager:
+    handler: src/handler.manager
+    cors: true

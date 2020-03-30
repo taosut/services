@@ -1,0 +1,134 @@
+org: agora
+app: agora
+service:
+  name: agora-exam-service
+  description: Agora Exam Service
+
+custom:
+  stages:
+    dev:
+      domain: 'exam.api-dev.agora.id'
+      certificate: '*.api-dev.agora.id'
+    staging:
+      domain: 'exam.api-staging.agora.id'
+      certificate: '*.api-staging.agora.id'
+    prod:
+      domain: 'exam.api.agora.id'
+      certificate: '*.api.agora.id'
+  # Custom Domain
+  customDomain:
+    domainName: ${self:custom.stages.${self:provider.stage}.domain}
+    stage: ${self:provider.stage}
+    certificateName: ${self:custom.stages.${self:provider.stage}.certificate}
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Exam Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Action:
+        - 'secretsmanager:GetSecretValue'
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+        - lambda:InvokeAsync
+      Resource: '*'
+  environment:
+    STAGE: ${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+  - serverless-pseudo-parameters
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/@types/**
+    - node_modules/aws-sdk/**
+  include:
+    - package.json
+  individually: true
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          path: /swagger
+          method: GET
+          cors: true
+
+      - http:
+          method: any
+          path: /{proxy+}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:210491301395:function:agora-authorizer-service-${self:provider.stage}-authorizerLearner
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+resources:
+  Resources:
+    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'

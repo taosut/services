@@ -1,0 +1,137 @@
+org: agora
+app: agora
+service:
+  name: learning-service
+  description: Learning Service
+
+custom:
+  customDomain:
+    domainName: learning-${self:provider.stage}.api.agora.id
+    stage: ${self:provider.stage}
+    certificateName: '*.api.agora.id'
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Learning Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 300
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Action:
+        - 'secretsmanager:GetSecretValue'
+      Resource: '*'
+  environment:
+    STAGE: ${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/aws-sdk/**
+  include:
+    - package.json
+    # - node_modules/pg*/**
+    # - node_modules/postgres*/**
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          path: /swagger
+          method: GET
+          cors: true
+
+      - http:
+          method: any
+          path: /{proxy+}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:210491301395:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthor
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: GET
+          path: /{proxy+}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:210491301395:function:agora-authorizer-service-${self:provider.stage}-authorizerLearner
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+resources:
+  Resources:
+    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'

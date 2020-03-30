@@ -1,0 +1,9 @@
+{
+    "cSpell.words": [
+        "cors",
+        "keycloak",
+        "nestjs",
+        "nestjsx"
+    ],
+    "prettier.trailingComma": "es5"
+}

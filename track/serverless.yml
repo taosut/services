@@ -1,0 +1,76 @@
+org: agora
+app: agora
+service:
+  name: agora-enterprise-track-service
+  description: Agora Enterprise Track Service
+
+custom:
+  customDomain:
+    domainName: track-${self:provider.stage}.api.agora.id
+    stage: ${self:provider.stage}
+    certificateName: '*.api.agora.id'
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Enterprise Track Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Action:
+        - 'secretsmanager:GetSecretValue'
+      Resource: '*'
+  environment:
+    STAGE: ${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+  include:
+    # - package.json
+    # - node_modules/@magishift/util
+
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          method: any
+          path: /{proxy+}
+          cors: true
+      - http:
+          path: /swagger
+          method: GET
+          cors: true

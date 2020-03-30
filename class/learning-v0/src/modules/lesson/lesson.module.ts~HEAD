@@ -1,0 +1,19 @@
+import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ContentManagerService } from '../../services/invokes/contentManager.service';
+import { ExamService } from '../../services/invokes/exam.service';
+import { PlaylistModule } from '../playlist/playlist.module';
+import { LessonController } from './lesson.controller';
+import { Lesson } from './lesson.entity';
+import { LessonService } from './lesson.service';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Lesson]),
+    forwardRef(() => PlaylistModule),
+  ],
+  providers: [LessonService, ContentManagerService, ExamService],
+  controllers: [LessonController],
+  exports: [LessonService, ContentManagerService, ExamService],
+})
+export class LessonModule {}

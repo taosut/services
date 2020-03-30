@@ -1,0 +1,60 @@
+version: '3.7'
+
+services:
+  mariadb:
+    image: mariadb:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    logging:
+      driver: syslog
+      options:
+        tag: '{{.DaemonName}}(image={{.ImageName}};name={{.Name}};id={{.ID}})'
+    networks:
+      - backend
+    restart: on-failure
+    volumes:
+      - ${PWD}/mariadb:/var/lib/mysql
+
+  # dynamoDB:
+  #   image: cnadiminti/dynamodb-local:latest
+  #   ports:
+  #     - ${DYNAMO_DB_PORT}:8000
+
+  redis:
+    image: redis:latest
+    hostname: redis
+    ports:
+      - ${REDIS_PORT}:6379
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    depends_on:
+      - 'redis'
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - ${REDIS_COMMANDER_PORT}:8081
+
+  keycloak:
+    image: jboss/keycloak
+    links:
+      - maildev
+    volumes:
+      - ./keycloak/magishift/:/opt/jboss/keycloak/themes/magishift/
+      - ./keycloak/magishift-internal/:/opt/jboss/keycloak/themes/magishift-internal/
+      - ./keycloak/magishift-social-providers/:/opt/jboss/keycloak/themes/magishift-social-providers/
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres
+      DB_DATABASE: ${KEYCLOAK_DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KEYCLOAK_USER: ${KEYCLOAK_USER_MASTER}
+      KEYCLOAK_PASSWORD: ${KEYCLOAK_PASSWORD_MASTER}
+    ports:
+      - ${KEYCLOAK_PORT}:8080
+    depends_on:
+      - postgres

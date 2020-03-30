@@ -1,0 +1,296 @@
+org: agora
+app: agora
+service:
+  name: agora-channel-service
+  description: Agora Channel Service
+
+custom:
+  local:
+    domain: null
+    certificate: null
+  dev:
+    domain: 'channel-v0.dev.api-agora.com'
+    certificate: '*.api-agora.com'
+  staging:
+    domain: 'channel-v0.staging.api-agora.com'
+    certificate: '*.api-agora.com'
+  prod:
+    domain: 'channel-v0.api-agora.com'
+    certificate: '*.api-agora.com'
+
+  # Custom Domain
+  customDomain:
+    domainName: ${self:custom.${self:provider.stage}.domain}
+    stage: ${self:provider.stage}
+    certificateName: ${self:custom.${self:provider.stage}.certificate}
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Core Channel Service
+  role: arn:aws:iam::207219370128:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: agora-serverless
+  environment:
+    STAGE: ${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/aws-sdk/**
+  include:
+    - package.json
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      # Public
+      - http:
+          path: /swagger
+          method: GET
+          cors: true
+
+      - http:
+          method: GET
+          path: /channel
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: POST
+          path: /register
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: ANY
+          # method: PATCH
+          path: /channel/{proxy+}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      # - http:
+      #     method: DELETE
+      #     path: /channel/{id}
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+      # - http:
+      #     method: GET
+      #     path: /channel/{channelId}/account
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+      # - http:
+      #     method: POST
+      #     path: /channel/{channelId}/account
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+      # - http:
+      #     method: GET
+      #     path: /channel/{channelId}/account/{id}
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+      # - http:
+      #     method: PATCH
+      #     path: /channel/{channelId}/account/{id}
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+      # - http:
+      #     method: DELETE
+      #     path: /channel/{channelId}/account/{id}
+      #     cors:
+      #       origin: '*'
+      #       headers:
+      #         - Content-Type
+      #         - X-Amz-Date
+      #         - Authorization
+      #         - X-Api-Key
+      #         - X-Amz-Security-Token
+      #         - X-Amz-User-Agent
+      #         - Realm
+      #       allowCredentials: true
+      #     authorizer:
+      #       arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAuthorDirector
+      #       resultTtlInSeconds: 0
+      #       identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+      #       type: request
+
+      - http:
+          method: GET
+          path: /channel/classes
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: false
+
+resources:
+  Resources:
+    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'

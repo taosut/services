@@ -1,0 +1,139 @@
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CrudRequest } from '@nestjsx/crud';
+import { TypeOrmCrudService } from '@nestjsx/crud-typeorm';
+import { Repository } from 'typeorm';
+import { ContentManagerService } from '../../services/invokes/contentManager.service';
+import { SubCategoryService } from '../../services/invokes/subCategory.service';
+import { TrackService } from '../../services/invokes/track.service';
+import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistService } from '../playlist/playlist.service';
+import { Learning } from './learning.entity';
+
+@Injectable()
+export class LearningService extends TypeOrmCrudService<Learning> {
+  constructor(
+    @InjectRepository(Learning)
+    protected readonly repository: Repository<Learning>,
+    protected readonly subCategoryService: SubCategoryService,
+    protected readonly trackService: TrackService,
+    protected readonly contentManagerService: ContentManagerService,
+
+    @Inject(forwardRef(() => PlaylistService))
+    protected readonly playlistService: PlaylistService
+  ) {
+    super(repository);
+  }
+
+  async update(dto: Learning): Promise<Learning> {
+    const entity = await this.repository.create(dto);
+    const response = await this.repository.save(entity);
+
+    return response;
+  }
+
+  async createOne(req: CrudRequest, dto: Learning): Promise<Learning> {
+    // if (dto.subCategoryId) {
+    //   await this.subCategoryService.findById(dto.subCategoryId);
+    // }
+    // if (dto.trackId) {
+    //   await this.trackService.findById(dto.trackId);
+    // }
+    // if (dto.previewFileId) {
+    //   await this.contentManagerService.findById(dto.previewFileId);
+    // }
+    // if (dto.featuredFileId) {
+    //   await this.contentManagerService.findById(dto.featuredFileId);
+    // }
+
+    if (dto.indexPlaylists) {
+      await Promise.all(
+        await dto.indexPlaylists.map(async id => {
+          await this.playlistService.findOne(id);
+        })
+      );
+    }
+
+    return await super.createOne(req, dto);
+  }
+
+  async updateOne(req: CrudRequest, dto: Learning): Promise<Learning> {
+    if (dto.subCategoryId) {
+      await this.subCategoryService.findById(dto.subCategoryId);
+    }
+    if (dto.trackId) {
+      await this.trackService.findById(dto.trackId);
+    }
+    if (dto.previewFileId) {
+      await this.contentManagerService.findById(dto.previewFileId);
+    }
+    if (dto.featuredFileId) {
+      await this.contentManagerService.findById(dto.featuredFileId);
+    }
+
+    if (dto.indexPlaylists) {
+      await Promise.all(
+        await dto.indexPlaylists.map(async id => {
+          await this.playlistService.findOne(id);
+        })
+      );
+    }
+
+    return await super.updateOne(req, dto);
+  }
+
+  async getOne(req: CrudRequest): Promise<Learning> {
+    const learning = await super.getOne(req);
+
+    if (learning.indexPlaylists) {
+      const sorterPlaylist = await this.sortPlaylists(learning);
+
+      if (sorterPlaylist.length) {
+        learning.playlists = sorterPlaylist;
+      }
+    }
+
+    return learning;
+  }
+
+  async getOneBySlug(slug: string): Promise<Learning> {
+    const learning = await this.repository.findOne({ slug });
+
+    if (learning.indexPlaylists) {
+      const sorterPlaylist = await this.sortPlaylists(learning);
+
+      if (sorterPlaylist.length) {
+        learning.playlists = sorterPlaylist;
+      }
+    }
+
+    return learning;
+  }
+
+  async sortPlaylists(learning: Learning): Promise<Playlist[]> {
+    const sorterPlaylist = [];
+
+    await Promise.all(
+      await learning.indexPlaylists.map(async id => {
+        const playlist = await this.playlistService.findOne(id);
+
+        if (playlist) {
+          await sorterPlaylist.push(playlist);
+        } else {
+          const index = learning.indexPlaylists.findIndex(itemId => {
+            return itemId === id;
+          });
+
+          if (index !== -1) {
+            learning.indexPlaylists.splice(1, index);
+          }
+
+          delete learning.playlists;
+          await this.repository.update(learning.id, learning);
+        }
+      })
+    );
+
+    return sorterPlaylist;
+  }
+}

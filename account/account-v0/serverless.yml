@@ -1,0 +1,262 @@
+org: agora
+app: agora
+service:
+  name: agora-account-service
+
+custom:
+  local:
+    keycloak_config: null
+    saas_keycloak_config: null
+  dev:
+    domain: 'accounts.dev.api-agora.com'
+    certificate: '*.api-agora.com'
+    keycloak_config: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/dev~true}
+    saas_keycloak_config: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/dev~true}
+  staging:
+    domain: 'accounts.staging.api-agora.com'
+    certificate: '*.api-agora.com'
+    keycloak_config: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/staging~true}
+    saas_keycloak_config: ${ssm:/aws/reference/secretsmanager/Accounts/Keycloak/staging~true}
+  prod:
+    domain: 'accounts.api-agora.com'
+    certificate: '*.api-agora.com'
+    keycloak_config: null
+    saas_keycloak_config: null
+  customDomain:
+    domainName: ${self:custom.${self:provider.stage}.domain}
+    stage: ${self:provider.stage}
+    certificateName: ${self:custom.${self:provider.stage}.certificate}
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Account Service
+  role: arn:aws:iam::207219370128:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: agora-serverless
+  environment:
+    STAGE: ${self:provider.stage}
+
+    KEYCLOAK_BASE_URL: ${self:custom.${self:provider.stage}.keycloak_config.KEYCLOAK_BASE_URL}
+    KEYCLOAK_REALM_MAIN: ${self:custom.${self:provider.stage}.keycloak_config.KEYCLOAK_REALM_MAIN}
+    KEYCLOAK_USER_MAIN: ${self:custom.${self:provider.stage}.keycloak_config.KEYCLOAK_USER_MAIN}
+    KEYCLOAK_PASSWORD_MAIN: ${self:custom.${self:provider.stage}.keycloak_config.KEYCLOAK_PASSWORD_MAIN}
+
+    KEYCLOAK_BASE_URL_SAAS: ${self:custom.${self:provider.stage}.saas_keycloak_config.KEYCLOAK_BASE_URL}
+    KEYCLOAK_REALM_MAIN_SAAS: ${self:custom.${self:provider.stage}.saas_keycloak_config.KEYCLOAK_REALM_MAIN}
+    KEYCLOAK_USER_MAIN_SAAS: ${self:custom.${self:provider.stage}.saas_keycloak_config.KEYCLOAK_USER_MAIN}
+    KEYCLOAK_PASSWORD_MAIN_SAAS: ${self:custom.${self:provider.stage}.saas_keycloak_config.KEYCLOAK_PASSWORD_MAIN}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+  - serverless-pseudo-parameters
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/@types/**
+    - node_modules/aws-sdk/**
+  include:
+    - node_modules/mysql*/**
+    - package.json
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          method: get
+          path: /swagger
+          cors: true
+
+      - http:
+          method: any
+          path: /{proxy+}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: post
+          path: /accounts
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: delete
+          path: /accounts/{id}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: patch
+          path: /accounts/{id}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerAdmin
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: get
+          path: /accounts
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerLearner
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: get
+          path: /accounts/{id}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerLearner
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+      - http:
+          method: get
+          path: /accounts/find
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+          authorizer:
+            arn: arn:aws:lambda:${self:provider.region}:207219370128:function:agora-authorizer-service-${self:provider.stage}-authorizerLearner
+            resultTtlInSeconds: 0
+            identitySource: method.request.header.Authorization, method.request.header.Realm, context.identity.sourceIp
+            type: request
+
+resources:
+  Resources:
+    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    GatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    AuthFailureGatewayResponse:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Accept,X-Amz-Date,Authorization,X-Api-Key,X-Requested-With,Realm'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'

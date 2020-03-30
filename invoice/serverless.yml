@@ -1,0 +1,94 @@
+org: agora
+app: agora
+service:
+  name: agora-invoice-service
+
+custom:
+  membership_db_local:
+    {
+      'host': 'unused',
+      'username': 'unused',
+      'password': 'unused',
+      'port': 0000,
+    }
+  membership_db_dev: ${ssm:/aws/reference/secretsmanager/MEMBERSHIP_DB_DEV~true}
+  membership_db_staging: {}
+  membership_db_prod: {}
+
+  customDomain:
+    domainName: invoice.core${self:provider.stage}.zeniusnet.com
+    stage: ${self:provider.stage}
+    certificateName: '*.core${self:provider.stage}.zeniusnet.com'
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Zenius Core Invoice Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Resource: '*'
+      Action:
+        - secretsmanager:GetSecretValue
+    - Effect: Allow
+      Resource: '*'
+      Action:
+        - lambda:InvokeFunction
+  environment:
+    STAGE: ${self:provider.stage}
+    DB_HOST: ${self:custom.membership_db_${self:provider.stage}.host}
+    DB_USERNAME: ${self:custom.membership_db_${self:provider.stage}.username}
+    DB_PASSWORD: ${self:custom.membership_db_${self:provider.stage}.password}
+    DB_PORT: ${self:custom.membership_db_${self:provider.stage}.port}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/aws-sdk/**
+  include:
+    # - node_modules/mysql*/**
+    - package.json
+
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          method: get
+          path: /swagger
+          cors: true
+      - http:
+          method: any
+          path: /invoice
+          cors: true

@@ -1,0 +1,93 @@
+org: agora
+app: agora
+service:
+  name: agora-enterprise-learning-management-service
+  description: Agora Learning Management Service
+
+custom:
+  # DB Config
+  agora_enterprise_learning_db_local: {"host": "unused","username": "unused","password": "unused","port": 0000}
+  agora_enterprise_learning_db_dev: ${ssm:/aws/reference/secretsmanager/AGORA_ENTERPRISE_LEARNING_DEV~true}
+  agora_enterprise_learning_db_staging: {}
+  agora_enterprise_learning_db_prod: {}
+
+  customDomain:
+    domainName: learning-${self:provider.stage}.api.agora.id
+    stage: ${self:provider.stage}
+    certificateName: '*.api.agora.id'
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Learning Management Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Action:
+        - 'secretsmanager:GetSecretValue'
+      Resource: '*'
+  environment:
+    STAGE: ${self:provider.stage}
+    # DB Config
+    DB_HOST: ${self:custom.agora_enterprise_learning_db_${self:provider.stage}.host}
+    DB_USERNAME: ${self:custom.agora_enterprise_learning_db_${self:provider.stage}.username}
+    DB_PASSWORD: ${self:custom.agora_enterprise_learning_db_${self:provider.stage}.password}
+    DB_PORT: ${self:custom.agora_enterprise_learning_db_${self:provider.stage}.port}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/aws-sdk/**
+  include:
+    - package.json
+    # - node_modules/pg*/**
+    # - node_modules/postgres*/**
+
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          method: any
+          path: /{proxy+}
+          cors: true
+      - http:
+          path: /swagger
+          method: GET
+          cors: true
+      - http:
+          method: any
+          path: /
+          cors: true

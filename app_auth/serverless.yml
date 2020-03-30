@@ -1,0 +1,186 @@
+org: agora
+app: agora
+service:
+  name: agora-auth-service
+
+custom:
+  # Keycloak Config
+  keycloak_config_local: {"KEYCLOAK_BASE_URL": null}
+  keycloak_config_dev: ${ssm:/aws/reference/secretsmanager/AGORA_KEYCLOAK_CONFIG_DEV~true}
+  keycloak_config_staging: {}
+  keycloak_config_prod: {}
+  stages: {
+    dev: {domain: "auth.api-dev.agora.id", certificate: "*.api-dev.agora.id"},
+    staging: {domain: "auth.api-staging.agora.id", certificate: "*.api-staging.agora.id"},
+    prod: {domain: "auth.api.agora.id", certificate: "*.api.agora.id"},
+  }
+  # Custom Domain
+  customDomain:
+    domainName: ${self:custom.stages.${self:provider.stage}.domain}
+    stage: ${self:provider.stage}
+    certificateName: ${self:custom.stages.${self:provider.stage}.certificate}
+    createRoute53Record: true
+    endpointType: 'regional'
+
+provider:
+  name: aws
+  description: Agora Auth Service
+  role: arn:aws:iam::210491301395:role/lambda-role
+  runtime: nodejs10.x
+  region: 'ap-southeast-1'
+  memorySize: 512
+  timeout: 10s
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: ${self:provider.region}.serverlessdeploys
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+          - secretsmanager:GetSecretValue
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+        - lambda:InvokeAsync
+      Resource: "*"
+  environment:
+    STAGE: ${self:provider.stage}
+    # Keycloak Config
+    KEYCLOAK_BASE_URL: ${self:custom.keycloak_config_${self:provider.stage}.KEYCLOAK_BASE_URL}
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-plugin-typescript
+  - serverless-domain-manager
+  - serverless-pseudo-parameters
+
+package:
+  exclude:
+    - .git/**
+    - dist/**
+    - test/**
+    - e2e/**
+    - views/**
+    - keycloak-presets/**
+    - docker-postgres-init/**
+    - coverage/**
+    - nodemon.json
+    - README.md
+    - ./*.json
+    - ./*.log
+    - ./*.yml
+    - ./*.lock
+    - node_modules/babel-**/**
+    - node_modules/@babel/**
+    - node_modules/browserify**/**
+    - node_modules/figlet/**
+    - node_modules/@type/**
+    - node_modules/@types/**
+    - node_modules/aws-sdk/**
+  include:
+    - node_modules/mysql*/**
+    - package.json
+
+
+functions:
+  main:
+    handler: src/handler.handler
+    events:
+      - http:
+          method: get
+          path: /swagger
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /login
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /logout
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /sessions
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /verifyToken
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /verifyToken/{realm}
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true
+      - http:
+          method: any
+          path: /refreshToken
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+              - Realm
+            allowCredentials: true

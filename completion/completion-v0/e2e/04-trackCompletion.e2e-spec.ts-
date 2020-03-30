@@ -1,0 +1,127 @@
+import {
+  HttpModule,
+  INestApplication,
+  Logger,
+  ValidationPipe,
+} from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+
+import { ErrorFilter } from '@magishift/util';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { LearningCompletion } from '../src/modules/learningCompletion/learningCompletion.entity';
+import { LessonCompletion } from '../src/modules/lessonCompletion/lessonCompletion.entity';
+import { PlaylistCompletion } from '../src/modules/playlistCompletion/playlistCompletion.entity';
+import { TrackCompletionController } from '../src/modules/trackCompletion/trackCompletion.controller';
+import { TrackCompletion } from '../src/modules/trackCompletion/trackCompletion.entity';
+import { TrackCompletionModule } from '../src/modules/trackCompletion/trackCompletion.module';
+import { TrackCompletionService } from '../src/modules/trackCompletion/trackCompletion.service';
+
+describe('TrackCompletionController (e2e)', () => {
+  let app: INestApplication;
+
+  const completionData: Partial<TrackCompletion> = {
+    progress: '100',
+    finished: true,
+    track_id: 'TRACK_ID',
+    user_id: 'USER_ID',
+  };
+
+  let completionId: string;
+
+  beforeAll(async () => {
+    const module = await Test.createTestingModule({
+      imports: [
+        TypeOrmModule.forRoot({
+          type: 'sqlite',
+          database: ':memory:',
+          entities: [
+            TrackCompletion,
+            LearningCompletion,
+            PlaylistCompletion,
+            LessonCompletion,
+          ],
+          synchronize: true,
+        }),
+        TypeOrmModule.forFeature([TrackCompletion]),
+        TrackCompletionModule,
+        HttpModule,
+      ],
+      providers: [TrackCompletionService],
+      controllers: [TrackCompletionController],
+      exports: [TrackCompletionService],
+    }).compile();
+
+    app = module.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe());
+    app.useGlobalFilters(new ErrorFilter(Logger));
+    await app.init();
+  });
+
+  it('/GET /completion/track', () => {
+    return request(app.getHttpServer())
+      .get('/completion/track')
+      .set('Accept', 'application/json')
+      .expect(200)
+      .then(({ body }) => {
+        expect(Array.isArray(body)).toBe(true);
+      });
+  });
+
+  it('/POST /completion/track', () => {
+    return request(app.getHttpServer())
+      .post('/completion/track')
+      .set('Accept', 'application/json')
+      .send(completionData)
+      .expect(201)
+      .then(({ body }) => {
+        expect(body.id).toBeDefined();
+
+        completionId = body.id;
+      });
+  });
+
+  it('/GET /completion/track/{id}', () => {
+    return request(app.getHttpServer())
+      .get('/completion/track/' + completionId)
+      .set('Accept', 'application/json')
+      .expect(200)
+      .then(({ body }) => {
+        expect(body.id).toBeDefined();
+      });
+  });
+
+  it('/PUT /completion/track/{id}', () => {
+    return request(app.getHttpServer())
+      .put('/completion/track/' + completionId)
+      .set('Accept', 'application/json')
+      .send(completionData)
+      .expect(200)
+      .then(({ body }) => {
+        expect(body.id).toBeDefined();
+      });
+  });
+
+  it('/PATCH /completion/track/{id}', () => {
+    return request(app.getHttpServer())
+      .patch('/completion/track/' + completionId)
+      .set('Accept', 'application/json')
+      .send(completionData)
+      .expect(200)
+      .then(({ body }) => {
+        expect(body.id).toBeDefined();
+      });
+  });
+
+  it('/DELETE /completion/track/{id}', () => {
+    return request(app.getHttpServer())
+      .delete('/completion/track/' + completionId)
+      .set('Accept', 'application/json')
+      .expect(200);
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await new Promise(resolve => setTimeout(() => resolve(), 500));
+  });
+});

@@ -1,0 +1,134 @@
+import {
+  forwardRef,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CrudRequest } from '@nestjsx/crud';
+import { TypeOrmCrudService } from '@nestjsx/crud-typeorm';
+import { Repository } from 'typeorm';
+import { ContentManagerService } from '../../services/invokes/contentManager.service';
+import { ExamService } from '../../services/invokes/exam.service';
+import { PlaylistService } from '../playlist/playlist.service';
+import { ELessonType } from './lesson.const';
+import { Lesson } from './lesson.entity';
+
+@Injectable()
+export class LessonService extends TypeOrmCrudService<Lesson> {
+  constructor(
+    @InjectRepository(Lesson)
+    protected readonly repository: Repository<Lesson>,
+    protected readonly contentManagerService: ContentManagerService,
+    protected readonly examService: ExamService,
+
+    @Inject(forwardRef(() => PlaylistService))
+    protected readonly playlistService: PlaylistService
+  ) {
+    super(repository);
+  }
+
+  async createOne(req: CrudRequest, dto: Lesson): Promise<Lesson> {
+    dto = this.validateLessonType(dto);
+
+    if (dto.contentId) {
+      await this.contentManagerService.findById(dto.contentId);
+    }
+
+    if (dto.examId) {
+      await this.examService.findById(dto.examId);
+    }
+
+    if (dto.contentIds) {
+      await Promise.all(
+        await dto.contentIds.map(async id => {
+          await this.contentManagerService.findById(id);
+        })
+      );
+    }
+
+    const lesson = await super.createOne(req, dto);
+
+    const playlist = await this.playlistService.findOne(lesson.playlistId);
+
+    if (playlist.indexLessons) {
+      playlist.indexLessons.push(lesson.id);
+    } else {
+      playlist.indexLessons = [lesson.id];
+    }
+
+    await this.playlistService.update(playlist);
+
+    const response = this.repository.findOne(lesson.id);
+
+    return response;
+  }
+
+  async updateOne(req: CrudRequest, dto: Lesson): Promise<Lesson> {
+    dto = this.validateLessonType(dto);
+
+    if (dto.contentId) {
+      await this.contentManagerService.findById(dto.contentId);
+    }
+
+    if (dto.examId) {
+      await this.examService.findById(dto.examId);
+    }
+
+    if (dto.contentIds) {
+      await Promise.all(
+        await dto.contentIds.map(async id => {
+          await this.contentManagerService.findById(id);
+        })
+      );
+    }
+
+    const response = await super.updateOne(req, dto);
+    return response;
+  }
+
+  validateLessonType(dto: Lesson): Lesson {
+    if (dto.type === ELessonType.exam) {
+      delete dto.contentId;
+      delete dto.audioPlaylists;
+      delete dto.ebooks;
+
+      if (!dto.examId) {
+        throw new HttpException('examId is required', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    if (dto.type === ELessonType.video) {
+      delete dto.examId;
+      delete dto.audioPlaylists;
+      delete dto.ebooks;
+
+      if (!dto.id && !dto.contentId) {
+        throw new HttpException(
+          'contentId is required',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+    }
+
+    if (dto.type === ELessonType.audio) {
+      delete dto.examId;
+      delete dto.ebooks;
+
+      if (!dto.id && !dto.contentId) {
+        throw new HttpException(
+          'contentId is required',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+    }
+
+    if (dto.type === ELessonType.ebook) {
+      delete dto.examId;
+      delete dto.audioPlaylists;
+    }
+
+    return dto;
+  }
+}
